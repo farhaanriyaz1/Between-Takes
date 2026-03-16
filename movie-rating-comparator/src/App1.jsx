@@ -19,8 +19,6 @@ function App() {
   const [genres, setGenres] = useState([])
   const [cast, setCast] = useState([])
   const [overview, setOverview] = useState('')
-  const [allSeasonsData, setAllSeasonsData] = useState([])
-  const [loadingEpisodes, setLoadingEpisodes] = useState(false)
 
   const generateVerdict = (tmdb, imdb, votes, popularity) => {
     let lines = []
@@ -41,82 +39,6 @@ function App() {
     return lines.join(' ')
   }
 
-  const fetchAllSeasonsWithRatings = async (tvId, totalSeasons) => {
-    setLoadingEpisodes(true)
-    const seasonsData = []
-    
-    for (let seasonNum = 1; seasonNum <= totalSeasons; seasonNum++) {
-      try {
-        const res = await fetch(
-          `https://api.themoviedb.org/3/tv/${tvId}/season/${seasonNum}`,
-          {
-            headers: {
-              Authorization: `Bearer ${TMDB_TOKEN}`,
-            },
-          }
-        )
-        const data = await res.json()
-        
-        // Fetch IMDb ratings for episodes
-        const episodesWithRatings = await Promise.all(
-          (data.episodes || []).map(async (episode) => {
-            let imdbRating = null
-            try {
-              const extRes = await fetch(
-                `https://api.themoviedb.org/3/tv/${tvId}/season/${seasonNum}/episode/${episode.episode_number}/external_ids`,
-                {
-                  headers: {
-                    Authorization: `Bearer ${TMDB_TOKEN}`,
-                  },
-                }
-              )
-              const extData = await extRes.json()
-              
-              if (extData.imdb_id) {
-                const omdbRes = await fetch(
-                  `https://www.omdbapi.com/?i=${extData.imdb_id}&apikey=${OMDB_API_KEY}`
-                )
-                const omdbData = await omdbRes.json()
-                if (omdbData.imdbRating && omdbData.imdbRating !== 'N/A') {
-                  imdbRating = parseFloat(omdbData.imdbRating)
-                }
-              }
-            } catch (err) {
-              console.error(`Failed to fetch IMDb rating for S${seasonNum}E${episode.episode_number}`)
-            }
-            
-            return {
-              episode_number: episode.episode_number,
-              name: episode.name,
-              imdb_rating: imdbRating
-            }
-          })
-        )
-        
-        seasonsData.push({
-          season_number: seasonNum,
-          episodes: episodesWithRatings
-        })
-      } catch (err) {
-        console.error(`Failed to fetch season ${seasonNum}`)
-      }
-    }
-    
-    setAllSeasonsData(seasonsData)
-    setLoadingEpisodes(false)
-  }
-
-  const getColorForRating = (rating) => {
-    if (!rating) return '#333'
-    if (rating >= 9.7) return '#6cdee6' // Absolute Cinema (9.7+)
-    if (rating >= 9.0) return '#087705' // Excellent (9.0-9.6) - change this color to what you want
-    if (rating >= 8.0) return '#3d743f' // Great (green)
-    if (rating >= 7.0) return '#8BC34A' // Good (light green)
-    if (rating >= 6.0) return '#FFC107' // Regular (yellow)
-    if (rating >= 5.0) return '#FF9800' // Bad (orange)
-    return '#F44336' // Garbage (red)
-  }
-
   const fetchDetails = async (id) => {
     try {
       const res = await fetch(
@@ -131,15 +53,6 @@ function App() {
       const data = await res.json()
       setGenres(data.genres?.map((g) => g.name) || [])
       setOverview(data.overview || '')
-      
-      // Fetch all seasons with IMDb ratings for TV shows
-      if (mediaType === 'tv') {
-        const totalSeasons = data.number_of_seasons || 0
-        if (totalSeasons > 0) {
-          fetchAllSeasonsWithRatings(id, totalSeasons)
-        }
-      }
-      
       if (mediaType === 'tv' && data.created_by?.length) {
         setDirectorOrCreator(data.created_by.map((c) => c.name).join(', '))
       }
@@ -204,9 +117,6 @@ function App() {
       setGenres([])
       setCast([])
       setOverview('')
-      setAllSeasonsData([])
-      setLoadingEpisodes(false)
-      
       try {
         const res = await fetch(
           `https://api.themoviedb.org/3/search/${mediaType}?query=${encodeURIComponent(
@@ -820,177 +730,6 @@ function App() {
                     )}
                   </div>
                 </div>
-
-                {/* Episode Ratings Grid for TV Shows */}
-                {mediaType === 'tv' && allSeasonsData.length > 0 && (
-                  <div style={{ marginTop: '50px', animation: 'fadeIn 1.2s ease-out' }}>
-                    <h3 style={{
-                      fontSize: '24px',
-                      fontWeight: '700',
-                      marginBottom: '25px',
-                      color: '#fff'
-                    }}>
-                      Episode Ratings (IMDb)
-                    </h3>
-                    
-                    {loadingEpisodes && (
-                      <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
-                        Loading episode ratings...
-                      </div>
-                    )}
-                    
-                    {!loadingEpisodes && (
-                      <div style={{
-                        overflowX: 'auto',
-                        background: '#000',
-                        borderRadius: '12px',
-                        border: '1px solid #222',
-                        padding: '20px'
-                      }}>
-                        <table style={{
-                          width: '100%',
-                          borderCollapse: 'separate',
-                          borderSpacing: '8px'
-                        }}>
-                          <thead>
-                            <tr>
-                              <th style={{
-                                padding: '12px',
-                                textAlign: 'center',
-                                fontSize: '13px',
-                                fontWeight: '600',
-                                color: '#666',
-                                position: 'sticky',
-                                left: 0,
-                                background: '#000',
-                                zIndex: 2
-                              }}>
-                                EP
-                              </th>
-                              {allSeasonsData.map((season) => (
-                                <th key={season.season_number} style={{
-                                  padding: '12px',
-                                  textAlign: 'center',
-                                  fontSize: '13px',
-                                  fontWeight: '600',
-                                  color: '#fff',
-                                  whiteSpace: 'nowrap'
-                                }}>
-                                  S{season.season_number}
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {Array.from({ 
-                              length: Math.max(...allSeasonsData.map(s => s.episodes.length)) 
-                            }).map((_, episodeIndex) => (
-                              <tr key={episodeIndex}>
-                                <td style={{
-                                  padding: '12px',
-                                  textAlign: 'center',
-                                  fontSize: '13px',
-                                  fontWeight: '600',
-                                  color: '#666',
-                                  position: 'sticky',
-                                  left: 0,
-                                  background: '#000',
-                                  zIndex: 1
-                                }}>
-                                  E{episodeIndex + 1}
-                                </td>
-                                {allSeasonsData.map((season) => {
-                                  const episode = season.episodes[episodeIndex]
-                                  return (
-                                    <td key={`${season.season_number}-${episodeIndex}`} style={{
-                                      padding: '0'
-                                    }}>
-                                      {episode ? (
-                                        <div
-                                          style={{
-                                            background: getColorForRating(episode.imdb_rating),
-                                            padding: '14px',
-                                            borderRadius: '8px',
-                                            textAlign: 'center',
-                                            fontSize: '16px',
-                                            fontWeight: '700',
-                                            color: episode.imdb_rating ? '#000' : '#666',
-                                            minWidth: '60px',
-                                            cursor: 'pointer',
-                                            transition: 'all 0.2s ease',
-                                            position: 'relative'
-                                          }}
-                                          title={episode.name}
-                                          onMouseEnter={(e) => {
-                                            e.currentTarget.style.transform = 'scale(1.1)'
-                                            e.currentTarget.style.zIndex = '10'
-                                          }}
-                                          onMouseLeave={(e) => {
-                                            e.currentTarget.style.transform = 'scale(1)'
-                                            e.currentTarget.style.zIndex = '1'
-                                          }}
-                                        >
-                                          {episode.imdb_rating ? episode.imdb_rating.toFixed(1) : 'N/A'}
-                                        </div>
-                                      ) : (
-                                        <div style={{
-                                          background: '#111',
-                                          padding: '14px',
-                                          borderRadius: '8px',
-                                          minWidth: '60px'
-                                        }} />
-                                      )}
-                                    </td>
-                                  )
-                                })}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                        
-                        {/* Color Legend */}
-                        <div style={{
-                          marginTop: '20px',
-                          display: 'flex',
-                          gap: '16px',
-                          flexWrap: 'wrap',
-                          justifyContent: 'center',
-                          paddingTop: '20px',
-                          borderTop: '1px solid #222'
-                        }}>
-                          {[
-                            { label: 'Absolute Cinema', rating: 9.7, color: '#00C853' },
-                            { label: 'Excellent', rating: 9.0, color: '#00E5FF' },  // Add this new line
-                            { label: 'Great', rating: 8.0, color: '#4CAF50' },
-                            { label: 'Regular', rating: 6.0, color: '#FFC107' },
-                            { label: 'Bad', rating: 5.0, color: '#FF9800' },
-                            { label: 'Garbage', rating: 0, color: '#F44336' }
-                          ].map((item) => (
-                            <div key={item.label} style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '8px'
-                            }}>
-                              <div style={{
-                                width: '20px',
-                                height: '20px',
-                                borderRadius: '4px',
-                                background: item.color
-                              }} />
-                              <span style={{
-                                fontSize: '13px',
-                                color: '#888',
-                                fontWeight: '500'
-                              }}>
-                                {item.label}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
 
                 {/* Cast Section */}
                 {cast.length > 0 && (
