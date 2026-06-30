@@ -14,6 +14,11 @@ app.use(cors({
     if (/^http:\/\/localhost:\d+$/.test(origin)) {
       return callback(null, true);
     }
+    // Allow production frontend origin
+    const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : [];
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
     callback(new Error('Not allowed by CORS'));
   },
   credentials: true
